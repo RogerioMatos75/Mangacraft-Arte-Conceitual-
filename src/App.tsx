@@ -190,6 +190,49 @@ Focus entirely on the main subject.`;
     if (!docElement) return;
 
     setIsExporting(true);
+    
+    // Inject style to override Tailwind v4 oklch/oklab variables that crash html2canvas
+    const style = document.createElement('style');
+    style.innerHTML = `
+      :root {
+        --color-neutral-50: #fafafa !important;
+        --color-neutral-100: #f5f5f5 !important;
+        --color-neutral-200: #e5e7eb !important;
+        --color-neutral-300: #d4d4d8 !important;
+        --color-neutral-400: #a3a3a3 !important;
+        --color-neutral-500: #737373 !important;
+        --color-neutral-600: #525252 !important;
+        --color-neutral-700: #404040 !important;
+        --color-neutral-800: #262626 !important;
+        --color-neutral-900: #171717 !important;
+        --color-indigo-50: #eef2ff !important;
+        --color-indigo-100: #e0e7ff !important;
+        --color-indigo-200: #c7d2fe !important;
+        --color-indigo-300: #a5b4fc !important;
+        --color-indigo-400: #818cf8 !important;
+        --color-indigo-500: #6366f1 !important;
+        --color-indigo-600: #4f46e5 !important;
+        --color-indigo-700: #4338ca !important;
+        --color-indigo-800: #3730a3 !important;
+        --color-indigo-900: #312e81 !important;
+        --color-white: #ffffff !important;
+        --color-black: #000000 !important;
+      }
+      * {
+        --tw-ring-color: rgba(0,0,0,0) !important;
+        --tw-shadow-color: rgba(0,0,0,0) !important;
+        --tw-border-color: rgba(0,0,0,0) !important;
+        --default-border-color: rgba(0,0,0,0) !important;
+        --tw-ring-offset-color: rgba(0,0,0,0) !important;
+        --tw-outline-color: rgba(0,0,0,0) !important;
+      }
+      html, body {
+        color: #171717 !important;
+        background-color: #fafafa !important;
+      }
+    `;
+    document.head.appendChild(style);
+
     try {
       // Capture the first page (Technical Sheet)
       const canvas = await html2canvas(docElement, {
@@ -207,9 +250,15 @@ Focus entirely on the main subject.`;
       });
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      // Scale down if the content is taller than the A4 page
+      const finalWidth = pdfHeight > pageHeight ? (canvas.width * pageHeight) / canvas.height : pdfWidth;
+      const finalHeight = pdfHeight > pageHeight ? pageHeight : pdfHeight;
+      const xOffset = (pdfWidth - finalWidth) / 2;
+      
+      pdf.addImage(imgData, 'PNG', xOffset, 0, finalWidth, finalHeight);
       
       // If we have a generated image, add it as a second page
       if (generatedImage) {
@@ -229,12 +278,12 @@ Focus entirely on the main subject.`;
         pdf.text("ADAPTATION ENGINE V6.0", margin, margin + 4);
         
         pdf.setFontSize(8);
-        pdf.text("DOCUMENT TYPE", pdfWidth - margin, margin, { align: 'right' });
+        pdf.text("TIPO DE DOCUMENTO", pdfWidth - margin, margin, { align: 'right' });
         
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(10);
         pdf.setFont("helvetica", "bold");
-        pdf.text("CONCEPT ART REFERENCE", pdfWidth - margin, margin + 4, { align: 'right' });
+        pdf.text("REFERÊNCIA DE ARTE CONCEITUAL", pdfWidth - margin, margin + 4, { align: 'right' });
         
         // Load and add the image
         const img = new Image();
@@ -260,7 +309,7 @@ Focus entirely on the main subject.`;
         pdf.setTextColor(150, 150, 150);
         pdf.setFontSize(7);
         pdf.setFont("helvetica", "normal");
-        const footerText = "This document is a technical asset of the production. Unauthorized distribution is prohibited. Generated via MangaCraft B2B Adaptation Engine.";
+        const footerText = "Este documento é um ativo técnico da produção. A distribuição não autorizada é proibida. Gerado via MangaCraft B2B Adaptation Engine.";
         pdf.text(footerText, pdfWidth - margin, pdf.internal.pageSize.getHeight() - margin, { align: 'right' });
       }
       
@@ -269,6 +318,9 @@ Focus entirely on the main subject.`;
       console.error('Error generating PDF:', error);
       alert('Erro ao gerar o PDF.');
     } finally {
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
       setIsExporting(false);
     }
   };
@@ -454,45 +506,45 @@ Focus entirely on the main subject.`;
                     </div>
                     
                     {generatedDoc ? (
-                      <div className="p-8 flex justify-center">
+                      <div className="p-4 md:p-8 flex justify-center overflow-auto">
                         {/* Professional A4 Document Preview */}
-                        <div id="printable-document" className="bg-white w-full max-w-[210mm] min-h-[297mm] p-[20mm] shadow-xl flex flex-col relative print:shadow-none print:p-0">
+                        <div id="printable-document" className="bg-[#ffffff] w-[210mm] h-[297mm] shrink-0 p-[10mm] flex flex-col relative print:shadow-none print:p-0 overflow-hidden" style={{ boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)', '--default-border-color': 'transparent' } as React.CSSProperties}>
                           
                           {/* Header */}
-                          <div className="flex justify-between items-start mb-20">
+                          <div className="flex justify-between items-start mb-4">
                             <div>
                               <h1 className="text-[#5a55d2] font-bold tracking-[0.2em] text-sm">MANGACRAFT</h1>
-                              <p className="text-gray-400 text-xs font-medium tracking-wider">ADAPTATION ENGINE V6.0</p>
+                              <p className="text-[#9ca3af] text-xs font-medium tracking-wider">ADAPTATION ENGINE V6.0</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-gray-400 text-xs font-medium tracking-wider">DOCUMENT TYPE</p>
-                              <p className="text-black font-bold text-sm">TECHNICAL CONCEPT SHEET</p>
+                              <p className="text-[#9ca3af] text-xs font-medium tracking-wider">TIPO DE DOCUMENTO</p>
+                              <p className="text-[#000000] font-bold text-sm">FICHA TÉCNICA DE CONCEITO</p>
                             </div>
                           </div>
 
                           {/* Title Section */}
-                          <div className="text-center mb-20">
-                            <p className="text-gray-400 text-xs font-bold tracking-[0.2em] mb-4">PRODUCTION TITLE</p>
-                            <h2 className="text-5xl md:text-6xl font-display italic text-[#5a55d2] mb-6 uppercase tracking-tight leading-tight">
+                          <div className="text-center mb-4">
+                            <p className="text-[#9ca3af] text-xs font-bold tracking-[0.2em] mb-1">TÍTULO DA PRODUÇÃO</p>
+                            <h2 className="text-3xl md:text-4xl font-display italic text-[#5a55d2] mb-2 uppercase tracking-tight leading-tight">
                               {title || generatedDoc.title}
                             </h2>
-                            <div className="w-24 h-1 bg-[#5a55d2] mx-auto mb-8"></div>
-                            <p className="text-gray-400 text-xs font-bold tracking-[0.2em] mb-2">ORIGINAL AUTHOR</p>
-                            <p className="text-xl font-bold text-black uppercase">{author || generatedDoc.author}</p>
+                            <div className="w-24 h-1 bg-[#5a55d2] mx-auto mb-3"></div>
+                            <p className="text-[#9ca3af] text-xs font-bold tracking-[0.2em] mb-1">AUTOR ORIGINAL</p>
+                            <p className="text-lg font-bold text-[#000000] uppercase">{author || generatedDoc.author}</p>
                           </div>
 
                           {/* Content Section */}
-                          <div className="grid grid-cols-2 gap-12 mb-16 text-sm flex-grow">
+                          <div className="grid grid-cols-2 gap-6 mb-4 text-sm flex-grow">
                             {/* Left Column */}
                             <div>
-                              <h3 className="font-bold text-[#5a55d2] mb-4 border-b border-gray-200 pb-2 tracking-wider text-xs uppercase">Características Artísticas</h3>
-                              <ul className="space-y-3 text-gray-700">
-                                <li><span className="font-semibold text-black">Estilo:</span> {generatedDoc.artisticFeatures?.style}</li>
-                                <li><span className="font-semibold text-black">Técnica:</span> {generatedDoc.artisticFeatures?.technique}</li>
-                                <li><span className="font-semibold text-black">Formato:</span> {generatedDoc.artisticFeatures?.format}</li>
-                                <li className="pt-2">
-                                  <span className="font-semibold text-black block mb-1">Detalhes Técnicos:</span>
-                                  <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                              <h3 className="font-bold text-[#5a55d2] mb-2 border-b border-[#e5e7eb] pb-1 tracking-wider text-xs uppercase">Características Artísticas</h3>
+                              <ul className="space-y-1.5 text-[#374151]">
+                                <li><span className="font-semibold text-[#000000]">Estilo:</span> {generatedDoc.artisticFeatures?.style}</li>
+                                <li><span className="font-semibold text-[#000000]">Técnica:</span> {generatedDoc.artisticFeatures?.technique}</li>
+                                <li><span className="font-semibold text-[#000000]">Formato:</span> {generatedDoc.artisticFeatures?.format}</li>
+                                <li className="pt-1">
+                                  <span className="font-semibold text-[#000000] block mb-0.5">Detalhes Técnicos:</span>
+                                  <ul className="list-disc pl-4 space-y-0.5 text-[#4b5563]">
                                     {generatedDoc.artisticFeatures?.details?.map((d: string, i: number) => <li key={i}>{d}</li>)}
                                   </ul>
                                 </li>
@@ -501,48 +553,48 @@ Focus entirely on the main subject.`;
                             
                             {/* Right Column */}
                             <div>
-                              <h3 className="font-bold text-[#5a55d2] mb-4 border-b border-gray-200 pb-2 tracking-wider text-xs uppercase">Elementos do Projeto</h3>
-                              <ul className="space-y-3 text-gray-700 mb-8">
-                                <li><span className="font-semibold text-black block mb-1">Personagem Principal:</span> {generatedDoc.projectElements?.mainCharacter}</li>
-                                <li><span className="font-semibold text-black block mb-1">Pose/Ação:</span> {generatedDoc.projectElements?.pose}</li>
-                                <li><span className="font-semibold text-black block mb-1">Narrativa Visual:</span> {generatedDoc.projectElements?.visualNarrative}</li>
+                              <h3 className="font-bold text-[#5a55d2] mb-2 border-b border-[#e5e7eb] pb-1 tracking-wider text-xs uppercase">Elementos do Projeto</h3>
+                              <ul className="space-y-1.5 text-[#374151] mb-4">
+                                <li><span className="font-semibold text-[#000000] block mb-0.5">Personagem Principal:</span> {generatedDoc.projectElements?.mainCharacter}</li>
+                                <li><span className="font-semibold text-[#000000] block mb-0.5">Pose/Ação:</span> {generatedDoc.projectElements?.pose}</li>
+                                <li><span className="font-semibold text-[#000000] block mb-0.5">Narrativa Visual:</span> {generatedDoc.projectElements?.visualNarrative}</li>
                               </ul>
                               
-                              <h3 className="font-bold text-[#5a55d2] mb-4 border-b border-gray-200 pb-2 tracking-wider text-xs uppercase">Aplicações & Direitos</h3>
-                              <ul className="space-y-3 text-gray-700">
+                              <h3 className="font-bold text-[#5a55d2] mb-2 border-b border-[#e5e7eb] pb-1 tracking-wider text-xs uppercase">Aplicações & Direitos</h3>
+                              <ul className="space-y-1.5 text-[#374151]">
                                 <li>
-                                  <span className="font-semibold text-black block mb-1">Aplicações Sugeridas:</span>
-                                  <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                                  <span className="font-semibold text-[#000000] block mb-0.5">Aplicações Sugeridas:</span>
+                                  <ul className="list-disc pl-4 space-y-0.5 text-[#4b5563]">
                                     {generatedDoc.applications?.map((app: string, i: number) => <li key={i}>{app}</li>)}
                                   </ul>
                                 </li>
-                                <li className="pt-2"><span className="font-semibold text-black">Status:</span> {generatedDoc.copyright?.status}</li>
+                                <li className="pt-1"><span className="font-semibold text-[#000000]">Status:</span> {generatedDoc.copyright?.status}</li>
                                 
                                 {/* Hardcoded Copyright Law Text */}
-                                <li><span className="font-semibold text-black">Proteção:</span> Protegido pela Lei de Direitos Autorais (Lei nº 9.610/98) - {generatedDoc.copyright?.protection}</li>
+                                <li><span className="font-semibold text-[#000000]">Proteção:</span> Protegido pela Lei de Direitos Autorais (Lei nº 9.610/98) - {generatedDoc.copyright?.protection}</li>
                                 
                                 {/* Protocol Field */}
                                 {protocol && (
-                                  <li><span className="font-semibold text-black">Protocolo de Registro:</span> {protocol}</li>
+                                  <li><span className="font-semibold text-[#000000]">Protocolo de Registro:</span> {protocol}</li>
                                 )}
                               </ul>
                             </div>
                           </div>
 
                           {/* Footer */}
-                          <div className="mt-auto pt-8 border-t border-gray-100 flex justify-between items-end text-xs">
+                          <div className="mt-auto pt-4 border-t border-[#f3f4f6] flex justify-between items-end text-xs">
                             <div>
-                              <p className="text-gray-400 font-bold tracking-wider mb-1">DEPARTMENT</p>
-                              <p className="font-bold text-black mb-6">VISUAL DEVELOPMENT / CONCEPT ART</p>
-                              <p className="text-gray-400 font-bold tracking-wider mb-1">DATE OF ISSUE</p>
-                              <p className="font-bold text-black">{generatedDoc.date}</p>
+                              <p className="text-[#9ca3af] font-bold tracking-wider mb-1">DEPARTAMENTO</p>
+                              <p className="font-bold text-[#000000] mb-2">DESENVOLVIMENTO VISUAL / ARTE CONCEITUAL</p>
+                              <p className="text-[#9ca3af] font-bold tracking-wider mb-1">DATA DE EMISSÃO</p>
+                              <p className="font-bold text-[#000000]">{generatedDoc.date}</p>
                             </div>
                             <div className="text-right max-w-[250px]">
-                              <p className="text-gray-400 font-bold tracking-wider mb-8 text-left">TECHNICAL DIRECTOR RESPONSIBLE</p>
-                              <div className="border-b border-gray-300 mb-2 w-full"></div>
-                              <p className="text-gray-400 italic text-[10px] text-left">Signature / Digital Approval</p>
-                              <p className="text-gray-400 text-[9px] mt-6 text-left leading-relaxed">
-                                This document is a technical asset of the production. Unauthorized distribution is prohibited. Generated via MangaCraft B2B Adaptation Engine.
+                              <p className="text-[#9ca3af] font-bold tracking-wider mb-4 text-left">DIRETOR TÉCNICO RESPONSÁVEL</p>
+                              <div className="border-b border-[#d1d5db] mb-2 w-full"></div>
+                              <p className="text-[#9ca3af] italic text-[10px] text-left">Assinatura / Aprovação Digital</p>
+                              <p className="text-[#9ca3af] text-[9px] mt-2 text-left leading-relaxed">
+                                Este documento é um ativo técnico da produção. A distribuição não autorizada é proibida. Gerado via MangaCraft B2B Adaptation Engine.
                               </p>
                             </div>
                           </div>
