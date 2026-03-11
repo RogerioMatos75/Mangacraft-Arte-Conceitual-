@@ -6,6 +6,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, Download, Copy, Loader2, Image as ImageIcon, Wand2, Printer } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -49,6 +51,7 @@ export default function App() {
   const [image, setImage] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
+  const [protocol, setProtocol] = useState('');
   
   const [isGeneratingDoc, setIsGeneratingDoc] = useState(false);
   const [generatedDoc, setGeneratedDoc] = useState<any | null>(null);
@@ -56,6 +59,7 @@ export default function App() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   
+  const [isExporting, setIsExporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'doc' | 'image'>('doc');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,15 +143,14 @@ Retorne os dados estritamente no formato JSON solicitado.`;
       const base64Data = image.split(',')[1];
       const mimeType = image.split(';')[0].split(':')[1];
 
-      const prompt = `Ilustração ultra detalhada em estilo realista desenhado à mão, com:
-- Sombreamento fino e preciso em grafite
-- Linhas de construção visíveis para destacar o processo criativo
-- Hachuras cruzadas densas para profundidade e textura
-- Papel branco texturizado como fundo, com granulação perceptível
-- Paleta monocromática em preto e branco
-- Proporções anatômicas corretas e expressividade facial
-- Composição vertical em 9:16, resolução 4K
-- Foco exclusivo no personagem e na técnica artística, sem elementos comerciais`;
+      // Improved prompt for a true pencil sketch look
+      const prompt = `A highly detailed, realistic pencil sketch of the provided image. 
+Hand-drawn graphite on textured white paper. 
+Visible pencil strokes, dense cross-hatching for shading and depth. 
+Rough construction lines visible. 
+Black and white, monochrome, grayscale. 
+Concept art sketch style, traditional media look. 
+Focus entirely on the main subject.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -182,8 +185,92 @@ Retorne os dados estritamente no formato JSON solicitado.`;
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const downloadPDF = async () => {
+    const docElement = document.getElementById('printable-document');
+    if (!docElement) return;
+
+    setIsExporting(true);
+    try {
+      // Capture the first page (Technical Sheet)
+      const canvas = await html2canvas(docElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // If we have a generated image, add it as a second page
+      if (generatedImage) {
+        pdf.addPage();
+        
+        const margin = 20;
+        
+        // Add Header to second page
+        pdf.setFontSize(10);
+        pdf.setTextColor(90, 85, 210); // #5a55d2
+        pdf.setFont("helvetica", "bold");
+        pdf.text("MANGACRAFT", margin, margin);
+        
+        pdf.setTextColor(150, 150, 150);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "normal");
+        pdf.text("ADAPTATION ENGINE V6.0", margin, margin + 4);
+        
+        pdf.setFontSize(8);
+        pdf.text("DOCUMENT TYPE", pdfWidth - margin, margin, { align: 'right' });
+        
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.text("CONCEPT ART REFERENCE", pdfWidth - margin, margin + 4, { align: 'right' });
+        
+        // Load and add the image
+        const img = new Image();
+        img.src = generatedImage;
+        await new Promise(resolve => { img.onload = resolve; });
+        
+        const maxImgWidth = pdfWidth - (margin * 2);
+        const maxImgHeight = pdf.internal.pageSize.getHeight() - (margin * 2) - 40;
+        
+        let imgW = img.width;
+        let imgH = img.height;
+        const ratio = Math.min(maxImgWidth / imgW, maxImgHeight / imgH);
+        
+        imgW = imgW * ratio;
+        imgH = imgH * ratio;
+        
+        const x = (pdfWidth - imgW) / 2;
+        const y = margin + 20;
+        
+        pdf.addImage(generatedImage, 'PNG', x, y, imgW, imgH);
+        
+        // Add Footer to second page
+        pdf.setTextColor(150, 150, 150);
+        pdf.setFontSize(7);
+        pdf.setFont("helvetica", "normal");
+        const footerText = "This document is a technical asset of the production. Unauthorized distribution is prohibited. Generated via MangaCraft B2B Adaptation Engine.";
+        pdf.text(footerText, pdfWidth - margin, pdf.internal.pageSize.getHeight() - margin, { align: 'right' });
+      }
+      
+      pdf.save(`${title || 'Ficha_Tecnica_MangaCraft'}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Erro ao gerar o PDF.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const downloadImage = () => {
@@ -283,6 +370,20 @@ Retorne os dados estritamente no formato JSON solicitado.`;
                     className="w-full px-4 py-2 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                   />
                 </div>
+
+                <div>
+                  <label htmlFor="protocol" className="block text-sm font-medium text-neutral-700 mb-1">
+                    Protocolo de Registro (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    id="protocol"
+                    value={protocol}
+                    onChange={(e) => setProtocol(e.target.value)}
+                    placeholder="Ex: BR 10 2024 001234 5"
+                    className="w-full px-4 py-2 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
               </div>
             </div>
 
@@ -342,11 +443,12 @@ Retorne os dados estritamente no formato JSON solicitado.`;
                     <div className="sticky top-0 right-0 p-4 flex justify-end z-10 no-print pointer-events-none">
                       {generatedDoc && (
                         <button 
-                          onClick={handlePrint} 
-                          className="pointer-events-auto flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-indigo-700 transition-colors"
+                          onClick={downloadPDF} 
+                          disabled={isExporting}
+                          className="pointer-events-auto flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
                         >
-                          <Printer size={18} />
-                          Exportar PDF
+                          {isExporting ? <Loader2 className="animate-spin" size={18} /> : <Printer size={18} />}
+                          {isExporting ? 'Gerando PDF...' : 'Exportar PDF'}
                         </button>
                       )}
                     </div>
@@ -372,11 +474,11 @@ Retorne os dados estritamente no formato JSON solicitado.`;
                           <div className="text-center mb-20">
                             <p className="text-gray-400 text-xs font-bold tracking-[0.2em] mb-4">PRODUCTION TITLE</p>
                             <h2 className="text-5xl md:text-6xl font-display italic text-[#5a55d2] mb-6 uppercase tracking-tight leading-tight">
-                              {generatedDoc.title}
+                              {title || generatedDoc.title}
                             </h2>
                             <div className="w-24 h-1 bg-[#5a55d2] mx-auto mb-8"></div>
                             <p className="text-gray-400 text-xs font-bold tracking-[0.2em] mb-2">ORIGINAL AUTHOR</p>
-                            <p className="text-xl font-bold text-black uppercase">{generatedDoc.author}</p>
+                            <p className="text-xl font-bold text-black uppercase">{author || generatedDoc.author}</p>
                           </div>
 
                           {/* Content Section */}
@@ -415,7 +517,14 @@ Retorne os dados estritamente no formato JSON solicitado.`;
                                   </ul>
                                 </li>
                                 <li className="pt-2"><span className="font-semibold text-black">Status:</span> {generatedDoc.copyright?.status}</li>
-                                <li><span className="font-semibold text-black">Proteção:</span> {generatedDoc.copyright?.protection}</li>
+                                
+                                {/* Hardcoded Copyright Law Text */}
+                                <li><span className="font-semibold text-black">Proteção:</span> Protegido pela Lei de Direitos Autorais (Lei nº 9.610/98) - {generatedDoc.copyright?.protection}</li>
+                                
+                                {/* Protocol Field */}
+                                {protocol && (
+                                  <li><span className="font-semibold text-black">Protocolo de Registro:</span> {protocol}</li>
+                                )}
                               </ul>
                             </div>
                           </div>
